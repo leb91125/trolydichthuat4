@@ -12,11 +12,11 @@ app.get('/', (req, res) => {
 
 // Điểm cuối API để xử lý việc dịch thuật
 app.post('/api/translate', async (req, res) => {
-  // QUAN TRỌNG: Đảm bảo bạn đã cấu hình GOOGLE_API_KEY trên Render
-  const apiKey = process.env.GOOGLE_API_KEY;
+  // Đọc API Key của Groq từ biến môi trường
+  const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'Google API Key not configured on server.' });
+    return res.status(500).json({ error: 'Groq API Key not configured on server.' });
   }
 
   const { chineseText } = req.body;
@@ -24,26 +24,28 @@ app.post('/api/translate', async (req, res) => {
     return res.status(400).json({ error: 'No Chinese text provided.' });
   }
   
-  // --- PROMPT CHUYÊN NGHIỆP DÀNH CHO GEMINI ---
-  // System Instruction: Đặt ra vai trò và quy tắc không thể phá vỡ cho AI
-  const system_instruction = `
-    **VAI TRÒ VÀ QUY TẮC TUYỆT ĐỐI:**
-    1.  **BẠN LÀ MỘT DỊCH GIẢ PHẬT GIÁO CHUYÊN NGHIỆP.** Tên của bạn là "Trợ Lý Dịch Khai Thị".
-    2.  **NHIỆM VỤ DUY NHẤT:** Dịch văn bản từ tiếng Trung sang tiếng Việt.
-    3.  **NGÔN NGỮ ĐẦU RA BẮT BUỘC:** Chỉ và chỉ được phép trả lời bằng tiếng Việt. KHÔNG được viết bất kỳ từ nào bằng tiếng Anh, tiếng Trung hay ngôn ngữ khác trong phần trả lời.
-    4.  **VĂN PHONG:** Sử dụng văn phong, thuật ngữ của Pháp Môn Tâm Linh do Sư Phụ Lư Quân Hoành khai thị. Dịch sát nghĩa, giữ nguyên bố cục gốc.
-    5.  **TỪ ĐIỂN BẮT BUỘC:** - 礼佛大忏悔文: Lễ Phật Đại Sám Hối Văn
-        - 女听众: Nữ Thính Giả
-        - 台长答: Đài Trưởng đáp
-        - 小房子: Ngôi Nhà Nhỏ
-        - 灵性: Vong Linh
-        - 好好修: Cứ chăm chỉ tu hành
-        - 一門精進: Nhất Môn Tinh Tấn
-        - 卢军宏: Lư Quân Hoành
-        - 师兄: Sư Huynh
+  // Prompt chuyên nghiệp vẫn được giữ nguyên để đảm bảo chất lượng
+  const system_prompt = `
+      **Yêu cầu nhiệm vụ (TUÂN THỦ TUYỆT ĐỐI):**
+      Bạn PHẢI hành động như "Trợ Lý Dịch Khai Thị", một chuyên gia dịch thuật tiếng Trung sang tiếng Việt trong lĩnh vực Phật giáo, dựa trên triết lý và khai thị của Đài Trưởng Lư Quân Hoành.
+      Nhiệm vụ của bạn là phải dịch văn bản tiếng Trung giản thể sau đây sang tiếng Việt. Hãy tuân thủ nghiêm ngặt các quy tắc và sử dụng tri thức nền tảng dưới đây để đảm bảo bản dịch có chất lượng cao nhất, đúng văn phong và thuật ngữ của Pháp Môn Tâm Linh.
+      **Quy tắc dịch thuật (BẮT BUỘC VÀ KHÔNG THAY ĐỔI):**
+      1. **Giữ nguyên bố cục:** Giữ nguyên cách trình bày dòng, đoạn của văn bản gốc.
+      2. **Dịch sát nghĩa:** Chỉ dịch sát nghĩa từng câu, không diễn đạt lại theo ý hiểu cá nhân.
+      3. **Thuật ngữ chuyên môn:** Nếu gặp thuật ngữ khó, hãy phiên âm Hán-Việt và giải thích ngắn gọn ở cuối bản dịch (nếu cần).
+      **Từ điển chuyên môn (SỬ DỤNG CHÍNH XÁC TUYỆT ĐỐI):**
+      - 礼佛大忏悔文 : Lễ Phật Đại Sám Hối Văn - 女听众 : Nữ Thính Giả - 台长答 : Đài Trưởng đáp - 小房子 : Ngôi Nhà Nhỏ - 冰山地狱 : Địa Ngục Núi Băng - 男聽眾 : Nam Thính Giả - 圖騰 : Đồ Đằng - 靈性 : Vong Linh - 聽眾 : Thính Giả - 好好修 : Cứ chăm chỉ tu hành - 誓願 : thệ nguyện - 一門精進 : Nhất Môn Tinh Tấn - 大悲神咒 : Chú Đại Bi - 諸佛國者 : các cõi Phật - 众生 : chúng sinh - 卢军宏 : Lư Quân Hoành - 要经者 : Người cần Kinh - 师兄 : Sư Huynh
+      **Tri thức nền tảng (BẮT BUỘC SỬ DỤNG LÀM CƠ SỞ DỊCH):**
+      - Mọi vấn đề trong cuộc sống (sự nghiệp, sức khỏe, hôn nhân, bệnh tật như tự kỷ) đều liên quan đến nghiệp chướng (业障) và vong linh (灵性).
+      - Giải pháp chính là "Tam Đại Pháp Bảo": Niệm Kinh (念经), Hứa Nguyện (许愿), và Phóng Sanh (放生).
+      - "Ngôi Nhà Nhỏ" (小房子) là một tổ hợp kinh văn đặc biệt dùng để trả nợ nghiệp, siêu độ vong linh, người cần kinh (要经者) và thai nhi bị phá bỏ. Đây là phương pháp cốt lõi.
+      - Các kinh văn thường dùng: Chú Đại Bi (大悲咒) để tăng năng lượng, Tâm Kinh (心经) để khai mở trí tuệ, Lễ Phật Đại Sám Hối Văn (礼佛大忏悔文) để sám hối nghiệp chướng, Chú Chuẩn Đề (准提神咒) để cầu nguyện sự nghiệp, học hành, và Giải Kết Chú (解结咒) để hóa giải oán kết.
+      - Giấc mơ (梦境) là một hình thức khai thị, thường báo hiệu về nghiệp chướng, vong linh cần siêu độ, hoặc những điềm báo cần hóa giải bằng cách niệm kinh, niệm Ngôi Nhà Nhỏ.
+      - Các vấn đề của trẻ nhỏ thường liên quan đến nghiệp chướng của cha mẹ, đặc biệt là nghiệp phá thai.
+      **Văn bản cần dịch:**
+      ---
   `;
 
-  // User Prompt: Yêu cầu cụ thể cho lần dịch này
   const user_prompt = `Dịch đoạn văn tiếng Trung sau đây sang tiếng Việt. Hãy tuân thủ tuyệt đối các quy tắc đã được nêu trong vai trò của bạn.
     
     Văn bản cần dịch:
@@ -52,41 +54,39 @@ app.post('/api/translate', async (req, res) => {
     ---
   `;
 
-  // THAY ĐỔI: Chuyển sang dùng 'gemini-pro' để tránh lỗi quota
-  const model = 'gemini-pro';
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // Cấu hình cho API của Groq
+  const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
+  const model = 'llama3-8b-8192'; // Một mô hình nhanh và mạnh mẽ trên Groq
 
   try {
-    const geminiResponse = await fetch(apiUrl, {
+    const groqResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      // Cấu trúc body chuyên nghiệp với systemInstruction
-      // LƯU Ý: 'gemini-pro' không hỗ trợ 'systemInstruction', nên chúng ta sẽ gộp prompt
+      // API của Groq tương thích với cấu trúc của OpenAI
       body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [{ text: system_instruction + "\n\n" + user_prompt }]
-        }]
+        messages: [
+          { role: 'system', content: system_prompt },
+          { role: 'user', content: user_prompt }
+        ],
+        model: model,
       }),
     });
     
-    const result = await geminiResponse.json();
+    const result = await groqResponse.json();
 
-    if (!geminiResponse.ok) {
-      console.error('Gemini API Error:', result.error);
-      throw new Error(result.error?.message || 'Error from Google AI API');
+    if (!groqResponse.ok) {
+      console.error('Groq API Error:', result.error);
+      throw new Error(result.error?.message || 'Error from Groq API');
     }
     
-    // Xử lý trường hợp bị chặn do an toàn hoặc không có nội dung
-    if (!result.candidates || result.candidates.length === 0) {
-        console.error('Gemini Response Blocked:', result.promptFeedback);
-        const blockReason = result.promptFeedback?.blockReason || 'Không có nội dung trả về';
-        throw new Error(`Bản dịch bị chặn hoặc không có nội dung. Lý do: ${blockReason}`);
+    const translatedText = result.choices[0]?.message?.content;
+    if (!translatedText) {
+        throw new Error('No translation content received from Groq.');
     }
 
-    const translatedText = result.candidates[0].content.parts[0].text;
     res.status(200).json({ translation: translatedText });
 
   } catch (error) {
