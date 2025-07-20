@@ -2,7 +2,6 @@ const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
 
-// PHẦN BỊ THIẾU: Khởi tạo ứng dụng Express
 const app = express();
 app.use(express.json());
 
@@ -11,49 +10,50 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Hàm tạo prompt chung
-const createBuddhistPrompt = (chineseText) => `
-    **Yêu cầu nhiệm vụ (TUÂN THỦ TUYỆT ĐỐI):**
-    Bạn PHẢI hành động như "Trợ Lý Dịch Khai Thị", một chuyên gia dịch thuật tiếng Trung sang tiếng Việt trong lĩnh vực Phật giáo, dựa trên triết lý và khai thị của Đài Trưởng Lư Quân Hoành...
-    // ... (Toàn bộ phần prompt chi tiết của bạn giữ nguyên ở đây)
-    **Văn bản cần dịch:**
-    ---
-    ${chineseText}
-    ---
-`;
-
-// Điểm cuối API để xử lý việc dịch thuật (Đã có code chẩn đoán lỗi)
+// Điểm cuối API để xử lý việc dịch thuật
 app.post('/api/translate', async (req, res) => {
-  // --- BẮT ĐẦU KHỐI LỆNH CHẨN ĐOÁN ---
-  console.log("--- Bắt đầu chẩn đoán lỗi xác thực ---");
-
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiKey = process.env.CLOUDFLARE_API_TOKEN;
 
-  console.log("Account ID đang sử dụng:", accountId);
-
-  if (apiKey) {
-    console.log(`API Token đang sử dụng (kiểm tra): Bắt đầu: [${apiKey.substring(0, 4)}]... Kết thúc: [...${apiKey.slice(-4)}]`);
-  } else {
-    console.log("API Token đang sử dụng: !!! KHÔNG TÌM THẤY TOKEN !!!");
-  }
-  
-  const model = '@cf/meta/llama-3-8b-instruct';
-  const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-  console.log("URL đang gọi đến:", apiUrl);
-  console.log("--- Kết thúc chẩn đoán ---");
-  // --- KẾT THÚC KHỐI LỆNH CHẨN ĐOÁN ---
-
   if (!accountId || !apiKey) {
-    return res.status(500).json({ error: 'Cloudflare credentials not configured on server. Please check environment variables.' });
+    return res.status(500).json({ error: 'Cloudflare credentials not configured on server.' });
   }
 
   const { chineseText } = req.body;
   if (!chineseText) {
     return res.status(400).json({ error: 'No Chinese text provided.' });
   }
+  
+  // --- PROMPT ĐÃ ĐƯỢC TỐI ƯU HÓA ---
+  // Tách biệt rõ ràng vai trò hệ thống và yêu cầu người dùng
+  const system_prompt = `
+    **VAI TRÒ VÀ QUY TẮC TUYỆT ĐỐI:**
+    1.  **BẠN LÀ MỘT DỊCH GIẢ PHẬT GIÁO CHUYÊN NGHIỆP.** Tên của bạn là "Trợ Lý Dịch Khai Thị".
+    2.  **NHIỆM VỤ DUY NHẤT:** Dịch văn bản từ tiếng Trung sang tiếng Việt.
+    3.  **NGÔN NGỮ ĐẦU RA BẮT BUỘC:** Chỉ và chỉ được phép trả lời bằng tiếng Việt. KHÔNG được viết bất kỳ từ nào bằng tiếng Anh, tiếng Trung hay ngôn ngữ khác trong phần trả lời.
+    4.  **VĂN PHONG:** Sử dụng văn phong, thuật ngữ của Pháp Môn Tâm Linh do Sư Phụ Lư Quân Hoành khai thị. Dịch sát nghĩa, giữ nguyên bố cục gốc.
+    5.  **TỪ ĐIỂN BẮT BUỘC:** - 礼佛大忏悔文: Lễ Phật Đại Sám Hối Văn
+        - 女听众: Nữ Thính Giả
+        - 台长答: Đài Trưởng đáp
+        - 小房子: Ngôi Nhà Nhỏ
+        - 灵性: Vong Linh
+        - 好好修: Cứ chăm chỉ tu hành
+        - 一門精進: Nhất Môn Tinh Tấn
+        - 卢军宏: Lư Quân Hoành
+        - 师兄: Sư Huynh
+  `;
 
-  const prompt = createBuddhistPrompt(chineseText);
+  const user_prompt = `Dịch đoạn văn tiếng Trung sau đây sang tiếng Việt. Hãy tuân thủ tuyệt đối các quy tắc đã được nêu.
+    
+    Văn bản cần dịch:
+    ---
+    ${chineseText}
+    ---
+  `;
+
+  // Sử dụng mô hình Llama 3, mạnh hơn và mới hơn
+  const model = '@cf/meta/llama-3-8b-instruct';
+  const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
   try {
     const cfResponse = await fetch(apiUrl, {
@@ -62,8 +62,12 @@ app.post('/api/translate', async (req, res) => {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      // Cấu trúc body mới với system prompt
       body: JSON.stringify({
-        messages: [{ role: 'user', content: prompt }]
+        messages: [
+          { role: 'system', content: system_prompt },
+          { role: 'user', content: user_prompt }
+        ]
       }),
     });
     
