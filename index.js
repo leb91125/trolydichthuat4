@@ -12,20 +12,17 @@ app.get('/', (req, res) => {
 
 // Điểm cuối API để xử lý việc dịch thuật
 app.post('/api/translate', async (req, res) => {
-  // Đọc API Key của Groq từ biến môi trường
-  const apiKey = process.env.GROQ_API_KEY;
-
+  const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Groq API Key not configured on server.' });
+    return res.status(500).json({ error: 'API key not configured on server.' });
   }
 
   const { chineseText } = req.body;
   if (!chineseText) {
     return res.status(400).json({ error: 'No Chinese text provided.' });
   }
-  
-  // Prompt chuyên nghiệp vẫn được giữ nguyên để đảm bảo chất lượng
-  const system_prompt = `
+
+  const prompt = `
       **Yêu cầu nhiệm vụ (TUÂN THỦ TUYỆT ĐỐI):**
       Bạn PHẢI hành động như "Trợ Lý Dịch Khai Thị", một chuyên gia dịch thuật tiếng Trung sang tiếng Việt trong lĩnh vực Phật giáo, dựa trên triết lý và khai thị của Đài Trưởng Lư Quân Hoành.
       Nhiệm vụ của bạn là phải dịch văn bản tiếng Trung giản thể sau đây sang tiếng Việt. Hãy tuân thủ nghiêm ngặt các quy tắc và sử dụng tri thức nền tảng dưới đây để đảm bảo bản dịch có chất lượng cao nhất, đúng văn phong và thuật ngữ của Pháp Môn Tâm Linh.
@@ -44,49 +41,26 @@ app.post('/api/translate', async (req, res) => {
       - Các vấn đề của trẻ nhỏ thường liên quan đến nghiệp chướng của cha mẹ, đặc biệt là nghiệp phá thai.
       **Văn bản cần dịch:**
       ---
+      ${chineseText}
+      ---
   `;
 
-  const user_prompt = `Dịch đoạn văn tiếng Trung sau đây sang tiếng Việt. Hãy tuân thủ tuyệt đối các quy tắc đã được nêu trong vai trò của bạn.
-    
-    Văn bản cần dịch:
-    ---
-    ${chineseText}
-    ---
-  `;
-
-  // Cấu hình cho API của Groq
-  const apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-  const model = 'llama3-8b-8192'; // Một mô hình nhanh và mạnh mẽ trên Groq
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
   try {
-    const groqResponse = await fetch(apiUrl, {
+    const geminiResponse = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      // API của Groq tương thích với cấu trúc của OpenAI
-      body: JSON.stringify({
-        messages: [
-          { role: 'system', content: system_prompt },
-          { role: 'user', content: user_prompt }
-        ],
-        model: model,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }),
     });
     
-    const result = await groqResponse.json();
+    const result = await geminiResponse.json();
 
-    if (!groqResponse.ok) {
-      console.error('Groq API Error:', result.error);
-      throw new Error(result.error?.message || 'Error from Groq API');
+    if (!geminiResponse.ok) {
+      throw new Error(result.error?.message || 'Error from Google AI API');
     }
     
-    const translatedText = result.choices[0]?.message?.content;
-    if (!translatedText) {
-        throw new Error('No translation content received from Groq.');
-    }
-
+    const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
     res.status(200).json({ translation: translatedText });
 
   } catch (error) {
@@ -95,7 +69,7 @@ app.post('/api/translate', async (req, res) => {
   }
 });
 
-// Khởi động máy chủ
+// Render sẽ tự động cung cấp cổng (PORT), chúng ta phải lắng nghe trên cổng đó
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
