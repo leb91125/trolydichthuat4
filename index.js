@@ -12,11 +12,11 @@ app.get('/', (req, res) => {
 
 // Điểm cuối API để xử lý việc dịch thuật
 app.post('/api/translate', async (req, res) => {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const apiKey = process.env.CLOUDFLARE_API_TOKEN;
+  // QUAN TRỌNG: Đảm bảo bạn đã cấu hình GOOGLE_API_KEY trên Render
+  const apiKey = process.env.GOOGLE_API_KEY;
 
-  if (!accountId || !apiKey) {
-    return res.status(500).json({ error: 'Cloudflare credentials not configured on server.' });
+  if (!apiKey) {
+    return res.status(500).json({ error: 'Google API Key not configured on server.' });
   }
 
   const { chineseText } = req.body;
@@ -24,9 +24,9 @@ app.post('/api/translate', async (req, res) => {
     return res.status(400).json({ error: 'No Chinese text provided.' });
   }
   
-  // --- PROMPT ĐÃ ĐƯỢC TỐI ƯU HÓA ---
-  // Tách biệt rõ ràng vai trò hệ thống và yêu cầu người dùng
-  const system_prompt = `
+  // --- PROMPT CHUYÊN NGHIỆP DÀNH CHO GEMINI ---
+  // System Instruction: Đặt ra vai trò và quy tắc không thể phá vỡ cho AI
+  const system_instruction = `
     **VAI TRÒ VÀ QUY TẮC TUYỆT ĐỐI:**
     1.  **BẠN LÀ MỘT DỊCH GIẢ PHẬT GIÁO CHUYÊN NGHIỆP.** Tên của bạn là "Trợ Lý Dịch Khai Thị".
     2.  **NHIỆM VỤ DUY NHẤT:** Dịch văn bản từ tiếng Trung sang tiếng Việt.
@@ -43,7 +43,8 @@ app.post('/api/translate', async (req, res) => {
         - 师兄: Sư Huynh
   `;
 
-  const user_prompt = `Dịch đoạn văn tiếng Trung sau đây sang tiếng Việt. Hãy tuân thủ tuyệt đối các quy tắc đã được nêu.
+  // User Prompt: Yêu cầu cụ thể cho lần dịch này
+  const user_prompt = `Dịch đoạn văn tiếng Trung sau đây sang tiếng Việt. Hãy tuân thủ tuyệt đối các quy tắc đã được nêu trong vai trò của bạn.
     
     Văn bản cần dịch:
     ---
@@ -51,34 +52,44 @@ app.post('/api/translate', async (req, res) => {
     ---
   `;
 
-  // Sử dụng mô hình Llama 3, mạnh hơn và mới hơn
-  const model = '@cf/meta/llama-3-8b-instruct';
-  const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+  // Sử dụng mô hình Gemini 1.5 Pro để có chất lượng cao nhất
+  const model = 'gemini-1.5-pro-latest';
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   try {
-    const cfResponse = await fetch(apiUrl, {
+    const geminiResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      // Cấu trúc body mới với system prompt
+      // Cấu trúc body chuyên nghiệp với systemInstruction
       body: JSON.stringify({
-        messages: [
-          { role: 'system', content: system_prompt },
-          { role: 'user', content: user_prompt }
-        ]
+        contents: [{
+          role: "user",
+          parts: [{ text: user_prompt }]
+        }],
+        systemInstruction: {
+          role: "system",
+          parts: [{ text: system_instruction }]
+        }
       }),
     });
     
-    const result = await cfResponse.json();
+    const result = await geminiResponse.json();
 
-    if (!cfResponse.ok || !result.success) {
-      console.error('Cloudflare AI Error:', result.errors);
-      throw new Error(result.errors?.[0]?.message || 'Error from Cloudflare AI');
+    if (!geminiResponse.ok) {
+      console.error('Gemini API Error:', result.error);
+      throw new Error(result.error?.message || 'Error from Google AI API');
     }
     
-    const translatedText = result.result.response;
+    // Xử lý trường hợp bị chặn do an toàn hoặc không có nội dung
+    if (!result.candidates || result.candidates.length === 0) {
+        console.error('Gemini Response Blocked:', result.promptFeedback);
+        const blockReason = result.promptFeedback?.blockReason || 'Không có nội dung trả về';
+        throw new Error(`Bản dịch bị chặn hoặc không có nội dung. Lý do: ${blockReason}`);
+    }
+
+    const translatedText = result.candidates[0].content.parts[0].text;
     res.status(200).json({ translation: translatedText });
 
   } catch (error) {
