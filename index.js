@@ -52,8 +52,8 @@ app.post('/api/translate', async (req, res) => {
     ---
   `;
 
-  // Sử dụng mô hình Gemini 1.5 Pro để có chất lượng cao nhất
-  const model = 'gemini-1.5-pro-latest';
+  // THAY ĐỔI: Chuyển sang dùng 'gemini-pro' để tránh lỗi quota
+  const model = 'gemini-pro';
   const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   try {
@@ -63,15 +63,12 @@ app.post('/api/translate', async (req, res) => {
         'Content-Type': 'application/json',
       },
       // Cấu trúc body chuyên nghiệp với systemInstruction
+      // LƯU Ý: 'gemini-pro' không hỗ trợ 'systemInstruction', nên chúng ta sẽ gộp prompt
       body: JSON.stringify({
         contents: [{
           role: "user",
-          parts: [{ text: user_prompt }]
-        }],
-        systemInstruction: {
-          role: "system",
-          parts: [{ text: system_instruction }]
-        }
+          parts: [{ text: system_instruction + "\n\n" + user_prompt }]
+        }]
       }),
     });
     
