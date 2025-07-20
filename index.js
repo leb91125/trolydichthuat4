@@ -1,4 +1,28 @@
-// Điểm cuối API để xử lý việc dịch thuật
+const express = require('express');
+const fetch = require('node-fetch');
+const path = require('path');
+
+// PHẦN BỊ THIẾU: Khởi tạo ứng dụng Express
+const app = express();
+app.use(express.json());
+
+// Phục vụ tệp index.html khi người dùng truy cập trang chủ
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Hàm tạo prompt chung
+const createBuddhistPrompt = (chineseText) => `
+    **Yêu cầu nhiệm vụ (TUÂN THỦ TUYỆT ĐỐI):**
+    Bạn PHẢI hành động như "Trợ Lý Dịch Khai Thị", một chuyên gia dịch thuật tiếng Trung sang tiếng Việt trong lĩnh vực Phật giáo, dựa trên triết lý và khai thị của Đài Trưởng Lư Quân Hoành...
+    // ... (Toàn bộ phần prompt chi tiết của bạn giữ nguyên ở đây)
+    **Văn bản cần dịch:**
+    ---
+    ${chineseText}
+    ---
+`;
+
+// Điểm cuối API để xử lý việc dịch thuật (Đã có code chẩn đoán lỗi)
 app.post('/api/translate', async (req, res) => {
   // --- BẮT ĐẦU KHỐI LỆNH CHẨN ĐOÁN ---
   console.log("--- Bắt đầu chẩn đoán lỗi xác thực ---");
@@ -6,10 +30,8 @@ app.post('/api/translate', async (req, res) => {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiKey = process.env.CLOUDFLARE_API_TOKEN;
 
-  // In ra các giá trị mà code đang thực sự sử dụng
   console.log("Account ID đang sử dụng:", accountId);
 
-  // In ra 4 ký tự đầu và 4 ký tự cuối của Token để kiểm tra mà không làm lộ toàn bộ
   if (apiKey) {
     console.log(`API Token đang sử dụng (kiểm tra): Bắt đầu: [${apiKey.substring(0, 4)}]... Kết thúc: [...${apiKey.slice(-4)}]`);
   } else {
@@ -23,7 +45,6 @@ app.post('/api/translate', async (req, res) => {
   // --- KẾT THÚC KHỐI LỆNH CHẨN ĐOÁN ---
 
   if (!accountId || !apiKey) {
-    // Trả về lỗi ngay nếu không có thông tin xác thực
     return res.status(500).json({ error: 'Cloudflare credentials not configured on server. Please check environment variables.' });
   }
 
@@ -32,7 +53,7 @@ app.post('/api/translate', async (req, res) => {
     return res.status(400).json({ error: 'No Chinese text provided.' });
   }
 
-  const prompt = createBuddhistPrompt(chineseText); // Dùng lại hàm tạo prompt của bạn
+  const prompt = createBuddhistPrompt(chineseText);
 
   try {
     const cfResponse = await fetch(apiUrl, {
@@ -60,4 +81,10 @@ app.post('/api/translate', async (req, res) => {
     console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// Khởi động máy chủ
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
